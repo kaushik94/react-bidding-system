@@ -66,7 +66,7 @@ A socket connection is established between client and server when client page lo
         
   ## Data
   
- JSON files are used as dataLayer instead of a Database just for implementation easiness. In real Time a database is more efficient than a file system . livestock_details.json and bid_history.json are files used to read and write necessary data.
+ JSON files are used as dataLayer instead of a Database just for implementation easiness. In real Time a database is more efficient than a file system . assets.json and bid_history.json are files used to read and write necessary data.
  
 
  
