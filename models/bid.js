@@ -5,7 +5,7 @@ var Schema = mongoose.Schema;
 
 var BidSchema = new Schema({
     id: String,
-    history: Object
+    history: { type: Object, default: {}}
 });
 
 // Compile model from schema

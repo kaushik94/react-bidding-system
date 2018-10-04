@@ -6,8 +6,34 @@ import Image from 'react-bootstrap/lib/Image';
 import BidHistory from './BidHistory';
 import BidTimer from './BidTimer';
 
+import Pusher from 'pusher-js';
+
 const io = require('socket.io-client');
 const socket = io();
+
+const decideAlertOnBid = (self, bidObj, cb) => {
+  var message;
+  for (var asset in bidObj) {
+    for (var bidder in bidObj[asset]) {
+      const bid = bidObj[asset][bidder];
+      if (!self.state.bidHistory[asset].hasOwnProperty(bidder)) {
+        if (self.state.bidHistory[asset][self.props.userName] < bidObj[asset][bidder]) {
+          console.log("bid more", self.props.userName, self.state.bidHistory[asset][self.props.userName], bidder, bidObj[asset][bidder])
+          message = `${bidder} just outbid you with ${bid}` 
+          NotificationManager.info('Get clubbing', message);
+        }
+      } else {
+        if (self.state.bidHistory[asset][bidder] < bidObj[asset][bidder] &&
+          self.state.bidHistory[asset][self.props.userName] < bidObj[asset][bidder]) {
+            message = `${bidder} just outbid you with ${bid}`
+            NotificationManager.info('Get clubbing', message); 
+            console.log("bid more", self.props.userName, self.state.bidHistory[asset][self.props.userName], bidder, bidObj[asset][bidder])
+          }
+      }
+    }
+  }
+  cb();
+}
 
 class DetailList extends Component {
   constructor(props) {
@@ -20,36 +46,55 @@ class DetailList extends Component {
     this.getBidHistory();
     var self = this; 
     //handle to listen updateBid from server socket
-    socket.on('updateBid', function(bidObj){
-      var message;
-      for (var asset in bidObj) {
-        for (var bidder in bidObj[asset]) {
-          const bid = bidObj[asset][bidder];
-          if (!self.state.bidHistory[asset].hasOwnProperty(bidder)) {
-            if (self.state.bidHistory[asset][self.props.userName] < bidObj[asset][bidder]) {
-              console.log("bid more", self.props.userName, self.state.bidHistory[asset][self.props.userName], bidder, bidObj[asset][bidder])
-              message = `${bidder} just outbid you with ${bid}` 
-              NotificationManager.info('Get clubbing', message);
-            }
-          } else {
-            if (self.state.bidHistory[asset][bidder] < bidObj[asset][bidder] &&
-              self.state.bidHistory[asset][self.props.userName] < bidObj[asset][bidder]) {
-                message = `${bidder} just outbid you with ${bid}`
-                NotificationManager.info('Get clubbing', message); 
-                console.log("bid more", self.props.userName, self.state.bidHistory[asset][self.props.userName], bidder, bidObj[asset][bidder])
-              }
-          }
-        }
-      }
-      self.setState({bidHistory:bidObj});
-      
-    });  
+    // socket.on('updateBid', function(bidObj){
+    //   var message;
+    //   for (var asset in bidObj) {
+    //     for (var bidder in bidObj[asset]) {
+    //       const bid = bidObj[asset][bidder];
+    //       if (!self.state.bidHistory[asset].hasOwnProperty(bidder)) {
+    //         if (self.state.bidHistory[asset][self.props.userName] < bidObj[asset][bidder]) {
+    //           console.log("bid more", self.props.userName, self.state.bidHistory[asset][self.props.userName], bidder, bidObj[asset][bidder])
+    //           message = `${bidder} just outbid you with ${bid}` 
+    //           NotificationManager.info('Get clubbing', message);
+    //         }
+    //       } else {
+    //         if (self.state.bidHistory[asset][bidder] < bidObj[asset][bidder] &&
+    //           self.state.bidHistory[asset][self.props.userName] < bidObj[asset][bidder]) {
+    //             message = `${bidder} just outbid you with ${bid}`
+    //             NotificationManager.info('Get clubbing', message); 
+    //             console.log("bid more", self.props.userName, self.state.bidHistory[asset][self.props.userName], bidder, bidObj[asset][bidder])
+    //           }
+    //       }
+    //     }
+    //   }
+    //   self.setState({bidHistory:bidObj});      
+    // });  
     //Emits 'getTime' to server socket
     socket.emit('getTime', 'test');
     //handle to listen 'remaining time' from server socket
     socket.on('remainingTime', function(timeFromServer){     
       self.setState({timeRemain:timeFromServer}); 
-    });     
+    });
+    
+    // pusher test on mount
+    // Enable pusher logging - don't include this in production
+    Pusher.logToConsole = true;
+
+    var pusher = new Pusher('4bfc58dae07dbdd74555', {
+      cluster: 'ap2',
+      forceTLS: true
+    });
+
+    var channel = pusher.subscribe('bidding-channel');
+    // channel.bind('remainingTime', function(timeFromServer) {
+    //   self.setState({timeRemain:timeFromServer});
+    // });
+    channel.bind('updateBid', function(bidObj) {
+      console.log("pusher update", bidObj);
+      decideAlertOnBid(self, bidObj.bids, () => {
+        self.setState({bidHistory:bidObj.bids});
+      })
+    });
   }
 
   getBidHistory = () => {
@@ -59,10 +104,10 @@ class DetailList extends Component {
       .then(bidHistory => this.setState({bidHistory}));
   }
 
-  saveBid(bidhistory, liveStockID) { 
+  saveBid(bidhistory, liveStockID, newBid) { 
     this.state.bidHistory[liveStockID] = bidhistory;
     // Save the  bidHistory  
-    fetch('/api/bidhistory',{method:"POST",headers: new Headers({'content-type':'application/json'}), dataType:'json', body:JSON.stringify(this.state.bidHistory)})
+    fetch('/api/bidhistory',{method:"POST",headers: new Headers({'content-type':'application/json'}), dataType:'json', body:JSON.stringify([this.state.bidHistory, newBid])})
      .then(res => res.json())
      .then(bidhistory => this.setState({bidhistory}));
 
@@ -129,7 +174,13 @@ class Details extends Component {
     var bidHistoryObj = this.props.bidHistory;
     bidHistoryObj[this.props.userName] = this.state.inputValue;
     event.preventDefault();
-    this.props.saveBid(bidHistoryObj,this.props.id);
+    const newBid = {
+      id: this.props.id,
+      user: this.props.userName,
+      bid: this.state.inputValue
+    };
+    
+    this.props.saveBid(bidHistoryObj,this.props.id, newBid);
     this.setState({showBidInput:false});
 
   }

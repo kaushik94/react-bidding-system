@@ -5,6 +5,7 @@ const express = require('express');
 const path = require('path');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
+const morgan = require('morgan');
 
 
 
@@ -15,14 +16,14 @@ const http = require('http').Server(app);
 const io = require('socket.io').listen(server);
 const bidDuration = 3600;
 const startTime = process.hrtime();
-// const Bid = require('./models/bid');
+const Bid = require('./models/bid');
 // const Asset = require('./models/Asset');
 
 
 var COW_DETAILS_FILE = path.join(__dirname, 'assets.json');
 var BID_HISTORY_FILE = path.join(__dirname, 'bid_history.json');
 var mongoDB = 'mongodb://127.0.0.1/bidding_app';
-mongoose.connect(mongoDB);
+mongoose.connect("mongodb://user:user94@ds121593.mlab.com:21593/moneysaveio-staging");
 // Get Mongoose to use the global promise library
 mongoose.Promise = global.Promise;
 //Get the default connection
@@ -33,6 +34,7 @@ db.on('error', console.error.bind(console, 'MongoDB connection error:'));
 
 // Serve static files from the React app
 app.use(express.static(path.join(__dirname, 'client/build')));
+app.use(morgan('combined'));
 
 
 //handle for client connection
@@ -52,6 +54,17 @@ io.on('connection', function(socket){
 app.use(bodyParser.urlencoded({extended: true}));
 app.use(bodyParser.json());
 
+const getAllBids = (cb) => {
+	Bid.find({}, (err, docs) => {
+		const response = {};
+		if (err) throw err;
+		for (var each in docs) {
+			response[docs[each].id] = docs[each].history;
+		}
+		console.log(response)
+		cb(response)
+	})
+}
 // Put all API endpoints under '/api'
 //End point to get the livestock details
 app.get('/api/details', (req, res) => {
@@ -61,44 +74,70 @@ app.get('/api/details', (req, res) => {
 		// 	console.log("all assets", docs);
 		// 	res.json(docs);
 		// })
-	  fs.readFile(COW_DETAILS_FILE, function(err, data) {
-	    if (err) {
-	      console.error(err);
-	      process.exit(1);
-	    }	    
-	    res.setHeader('Cache-Control', 'no-cache');
-	    //Return them as json
-	    res.json(JSON.parse(data));
-	  });
+	fs.readFile(COW_DETAILS_FILE, function(err, data) {
+	if (err) {
+		console.error(err);
+		process.exit(1);
+	}
+	console.log("got auction data from file", data)	    
+	res.setHeader('Cache-Control', 'no-cache');
+	//Return them as json
+	res.json(JSON.parse(data));
+	});
 });
 
 //End point to get the bidHistory
 app.get('/api/bidhistory', (req, res) => {
-	fs.readFile(BID_HISTORY_FILE, function(err, data) {
-	    if (err) {
-	      console.error(err);
-	      process.exit(1);
-	    }	   
+	getAllBids((bids) => {
+		res.setHeader('Cache-Control', 'no-cache');
+		res.json(bids);
+	})
+	// fs.readFile(BID_HISTORY_FILE, function(err, data) {
+	//     if (err) {
+	//       console.error(err);
+	//       process.exit(1);
+	//     }	   
 	    
-	    res.setHeader('Cache-Control', 'no-cache');
-	    //Return them as json
-	    res.json(JSON.parse(data));
-	  });
+	//     res.setHeader('Cache-Control', 'no-cache');
+	//     //Return them as json
+	//     res.json(JSON.parse(data));
+	//   });
 });
 
 //End point to save the updated Bid History
 app.post('/api/bidhistory', (req, res) => {
 	// var singleBid = 
-	fs.writeFile(BID_HISTORY_FILE, JSON.stringify(req.body), function(err) {
-		if (err) {
-			console.error(err);
-			process.exit(1);
+	// fs.writeFile(BID_HISTORY_FILE, JSON.stringify(req.body), function(err) {
+	// 	if (err) {
+	// 		console.error(err);
+	// 		process.exit(1);
+	// 	}
+	// 	// Emits updated bid to all sockets upon successful save
+	// 	io.emit('updateBid', req.body);	    
+	// 	res.setHeader('Cache-Control', 'no-cache');
+	// 	res.json(req.body);
+	// });
+	const [allBids, newBid] = req.body;
+	Bid.findOne({ id: newBid.id }, (err, doc) => {
+		if (err) throw err;
+		if (doc) {
+			console.log(doc);
+			doc['history'][newBid.user] = newBid.bid;
+			doc.markModified('history');
+			doc.save((err, saved) => {
+				if (err) throw err;
+				console.log("bid saved", doc);
+				getAllBids((bids) => {
+					io.emit('updateBid', bids);
+					console.log("bids before pusher", bids)
+					pusher.trigger('bidding-channel', 'updateBid', {
+						"bids": bids
+					});
+					res.json(bids);
+				})
+			})
 		}
-		// Emits updated bid to all sockets upon successful save
-		io.emit('updateBid', req.body);	    
-		res.setHeader('Cache-Control', 'no-cache');
-		res.json(req.body);
-	});
+	})
 });
 
 //End point to save the updated Bid History
@@ -179,7 +218,7 @@ app.post('/api/auction', (req, res) => {
 // The "catchall" handler: for any request that doesn't
 // match one above, send back React's index.html file.
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname+'/client/build/index.html'));
+	res.sendFile(path.join(__dirname+'/client/build/index.html'));
 });
 
 // const port = process.env.PORT || 5000;
@@ -199,3 +238,26 @@ console.log(`Auction Man Server listening on ${port}`);
 // 	if (err) throw err;
 // 	console.log("saved");
 // })
+
+const bid = new Bid({
+	id: 1,
+	history: {}
+})
+bid.save((err, saved) => {
+	if (err) throw err;
+})
+
+// testing pusher
+var Pusher = require('pusher');
+
+var pusher = new Pusher({
+  appId: '614453',
+  key: '4bfc58dae07dbdd74555',
+  secret: '76398d5d4599089d9ba8',
+  cluster: 'ap2',
+  encrypted: true
+});
+
+pusher.trigger('my-channel', 'my-event', {
+  "message": "hello world"
+});
