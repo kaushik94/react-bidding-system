@@ -22,7 +22,7 @@ const Bid = require('./models/bid');
 
 var COW_DETAILS_FILE = path.join(__dirname, 'assets.json');
 var BID_HISTORY_FILE = path.join(__dirname, 'bid_history.json');
-var mongoDB = 'mongodb://127.0.0.1/bidding_app';
+
 mongoose.connect("mongodb://user:user94@ds121593.mlab.com:21593/moneysaveio-staging");
 // Get Mongoose to use the global promise library
 mongoose.Promise = global.Promise;
