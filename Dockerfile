@@ -9,5 +9,6 @@ WORKDIR /app/client
 RUN npm install
 RUN npm run build
 WORKDIR /app
+RUN npm install -g pm2
 EXPOSE 5000
-CMD ["npm", "start"]
+CMD pm2 start --no-daemon  processes.json

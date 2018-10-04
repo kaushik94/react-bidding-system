@@ -8,9 +8,6 @@ import BidTimer from './BidTimer';
 
 import Pusher from 'pusher-js';
 
-const io = require('socket.io-client');
-const socket = io();
-
 const decideAlertOnBid = (self, bidObj, cb) => {
   var message;
   for (var asset in bidObj) {
@@ -38,46 +35,14 @@ const decideAlertOnBid = (self, bidObj, cb) => {
 class DetailList extends Component {
   constructor(props) {
     super(props);
-    this.state = {bidHistory:[],timeRemain:0} 
+    this.state = {bidHistory:[],timeRemain:0, timeRemaining:{}} 
   } 
 
    //Fetch bidHistory after first mount
   componentDidMount() { 
     this.getBidHistory();
-    var self = this; 
-    //handle to listen updateBid from server socket
-    // socket.on('updateBid', function(bidObj){
-    //   var message;
-    //   for (var asset in bidObj) {
-    //     for (var bidder in bidObj[asset]) {
-    //       const bid = bidObj[asset][bidder];
-    //       if (!self.state.bidHistory[asset].hasOwnProperty(bidder)) {
-    //         if (self.state.bidHistory[asset][self.props.userName] < bidObj[asset][bidder]) {
-    //           console.log("bid more", self.props.userName, self.state.bidHistory[asset][self.props.userName], bidder, bidObj[asset][bidder])
-    //           message = `${bidder} just outbid you with ${bid}` 
-    //           NotificationManager.info('Get clubbing', message);
-    //         }
-    //       } else {
-    //         if (self.state.bidHistory[asset][bidder] < bidObj[asset][bidder] &&
-    //           self.state.bidHistory[asset][self.props.userName] < bidObj[asset][bidder]) {
-    //             message = `${bidder} just outbid you with ${bid}`
-    //             NotificationManager.info('Get clubbing', message); 
-    //             console.log("bid more", self.props.userName, self.state.bidHistory[asset][self.props.userName], bidder, bidObj[asset][bidder])
-    //           }
-    //       }
-    //     }
-    //   }
-    //   self.setState({bidHistory:bidObj});      
-    // });  
-    //Emits 'getTime' to server socket
-    socket.emit('getTime', 'test');
-    //handle to listen 'remaining time' from server socket
-    socket.on('remainingTime', function(timeFromServer){     
-      self.setState({timeRemain:timeFromServer}); 
-    });
-    
-    // pusher test on mount
-    // Enable pusher logging - don't include this in production
+    this.getTimeRemaining();
+    var self = this;
     Pusher.logToConsole = true;
 
     var pusher = new Pusher('4bfc58dae07dbdd74555', {
@@ -86,15 +51,18 @@ class DetailList extends Component {
     });
 
     var channel = pusher.subscribe('bidding-channel');
-    // channel.bind('remainingTime', function(timeFromServer) {
-    //   self.setState({timeRemain:timeFromServer});
-    // });
     channel.bind('updateBid', function(bidObj) {
       console.log("pusher update", bidObj);
       decideAlertOnBid(self, bidObj.bids, () => {
         self.setState({bidHistory:bidObj.bids});
       })
     });
+  }
+
+  getTimeRemaining = () => {
+    fetch('/api/time')
+      .then(res => res.json())
+      .then(timeRemaining => this.setState({timeRemaining}))
   }
 
   getBidHistory = () => {
@@ -135,7 +103,7 @@ class DetailList extends Component {
           bidHistory = {bidSort}  
           saveBid = {self.saveBid.bind(self)}
           userName = {self.props.userName}
-          timeFromServer = {self.state.timeRemain}      
+          timeFromServer = {self.state.timeRemaining[details.id]}      
 
         >
          

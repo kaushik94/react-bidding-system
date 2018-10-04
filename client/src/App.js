@@ -1,10 +1,13 @@
 import React, { Component } from 'react';
+import Pusher from 'pusher-js';
+
+
 import 'bootstrap/dist/css/bootstrap.css';
 import Welcome from './Welcome';
 import './App.css';
 
-const io = require('socket.io-client');
-const socket = io();
+// const io = require('socket.io-client');
+// const socket = io();
 
 class App extends Component {
   // Initialize state
@@ -13,9 +16,14 @@ class App extends Component {
   // Fetch asset Details after first mount
   componentDidMount() {
     this.getDetails();
-    var that = this;          
-    socket.on('newAuction', function(newAuction){
-      console.log("new auction", newAuction);
+    var that = this;
+    var pusher = new Pusher('4bfc58dae07dbdd74555', {
+      cluster: 'ap2',
+      forceTLS: true
+    });
+    var channel = pusher.subscribe('bidding-channel');
+    channel.bind('newAuction', function(newAuction) {
+      console.log("pusher update", newAuction);
       that.setState({details: newAuction})
     }); 
   }
@@ -28,7 +36,6 @@ class App extends Component {
   }
 
   createAuction = (auction) => {
-    console.log(auction);
     fetch('/api/auction',{method:"POST",headers: new Headers({'content-type':'application/json'}), dataType:'json', body:JSON.stringify(auction)})
      .then(res => res.json())
      .then(details => this.setState({details}));
