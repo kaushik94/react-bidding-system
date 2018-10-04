@@ -6,12 +6,23 @@ import 'bootstrap/dist/css/bootstrap.css';
 import Welcome from './Welcome';
 import './App.css';
 
+
 // const io = require('socket.io-client');
 // const socket = io();
 
 class App extends Component {
+
+  constructor() {
+    super();
+
+
   // Initialize state
-  state = {details:[],bidHistory:[]}
+    this.state = {
+      details:[],
+      bidHistory:[],
+    }
+
+  }
 
   // Fetch asset Details after first mount
   componentDidMount() {
@@ -46,6 +57,8 @@ class App extends Component {
       <div className="App container-fluid">
         <div className = "row nav-bar">
           <div className = "col-md-12 app-title"><h1>Auction man</h1></div>
+        </div>
+        <div>
         </div>
         <div className = "row">          
             <Welcome details = {this.state.details} createAuction={this.createAuction} />          

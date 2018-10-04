@@ -9,6 +9,7 @@
     "react": "^15.6.1",
     "react-bootstrap": "^0.31.2",
     "react-dom": "^15.6.1",
+    "react-modal": "^3.6.1",
     "react-notifications": "^1.4.3",
     "react-scripts": "1.0.11",
     "socket.io": "^2.0.3",

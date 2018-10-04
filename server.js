@@ -17,6 +17,7 @@ const bidDuration = 3600;
 const startTime = process.hrtime();
 const Bid = require('./models/bid');
 const Asset = require('./models/asset');
+const BidQueue = require('./models/BidQueue');
 const logger = require('./logger');
 
 
@@ -116,6 +117,24 @@ app.post('/api/bidhistory', (req, res) => {
 			doc.markModified('history');
 			doc.save((err, saved) => {
 				if (err) throw err;
+				BidQueue.findOne({ user: newBid.user}, (err, queue) => {
+					if (err) throw err;
+					if (queue) {
+						queue.count = queue.count + 1;
+						queue.save();
+						if (queue.count > 4) {
+							pusher.trigger('bidding-channel', 'rouletteWheel', {
+								"user": newBid.user
+							})
+						}
+					} else {
+						const newQueue = new BidQueue({
+							user: newBid.user,
+							count: 1
+						})
+						newQueue.save();
+					}
+				})
 				getAllBids((bids) => {
 					// Emit update bid to channel
 					pusher.trigger('bidding-channel', 'updateBid', {
@@ -213,3 +232,12 @@ app.get('*', (req, res) => {
 // app.listen(port);
 
 console.log(`Auction Man Server listening on ${port}`);
+
+// cronjob to clean up frequent bidders data
+const clearBidQueues = () => {
+	BidQueue.remove({}, (err) => {
+		console.log('collection removed')
+	})
+}
+
+setInterval(function(){ clearBidQueues(); }, 120000);
