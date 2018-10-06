@@ -77,7 +77,7 @@ const getTimes = (cb) => {
 	Asset.find({}, (err, docs) => {
 		if (err) throw err;
 		for(var each in docs) {
-			response[docs[each].id] = docs[each].bidTime - process.hrtime(startTime)[0]
+			response[docs[each].id] = docs[each].bidTime - process.hrtime(docs[each].start)[0]
 		}
 		logger.debug("all times", response);
 		cb(response)

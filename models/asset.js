@@ -8,8 +8,12 @@ var AssetSchema = new Schema({
     name: String,
     basePrice: Number,
     bidTime: { type: Number, default: 3600 },
-    image: String
-});
+    image: String,
+    start: { type: Object, default: process.hrtime() }
+},{
+    timestamps: true
+  }
+);
 
 // Compile model from schema
 var AssetModel = mongoose.model('AssetModel', AssetSchema );
